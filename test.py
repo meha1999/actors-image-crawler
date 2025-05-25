@@ -17,8 +17,6 @@ import hashlib
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import re
-from skimage.metrics import structural_similarity as ssim
-import imagehash
 
 class IranianActorImageCrawler:
     def __init__(self, output_dir="iranian_actors_dataset"):
@@ -37,15 +35,6 @@ class IranianActorImageCrawler:
         
         # Check Selenium availability
         self.selenium_available = self.check_selenium_availability()
-        
-        # Image deduplication storage
-        self.image_hashes = {}  # Store image hashes for each actor
-        self.face_encodings_cache = {}  # Store face encodings for similarity check
-        
-        # Similarity thresholds
-        self.HASH_SIMILARITY_THRESHOLD = 5  # Hamming distance for perceptual hash
-        self.SSIM_THRESHOLD = 0.85  # Structural similarity threshold
-        self.FACE_SIMILARITY_THRESHOLD = 0.8  # Face encoding similarity threshold
         
         # Extended list of 100 Iranian actors and actresses
         self.actors_list = [
@@ -187,132 +176,6 @@ class IranianActorImageCrawler:
             print(f"Error setting up Chrome driver: {e}")
             return None
 
-    def calculate_image_hash(self, image_path):
-        """Calculate multiple types of image hashes for duplicate detection"""
-        try:
-            with Image.open(image_path) as img:
-                # Convert to RGB if needed
-                if img.mode != 'RGB':
-                    img = img.convert('RGB')
-                
-                # Calculate multiple hash types for better duplicate detection
-                hashes = {
-                    'phash': str(imagehash.phash(img)),  # Perceptual hash
-                    'dhash': str(imagehash.dhash(img)),  # Difference hash
-                    'whash': str(imagehash.whash(img)),  # Wavelet hash
-                    'average': str(imagehash.average_hash(img))  # Average hash
-                }
-                
-                return hashes
-        except Exception as e:
-            print(f"Error calculating hash for {image_path}: {e}")
-            return None
-
-    def calculate_structural_similarity(self, image1_path, image2_path):
-        """Calculate structural similarity between two images"""
-        try:
-            # Read images
-            img1 = cv2.imread(image1_path)
-            img2 = cv2.imread(image2_path)
-            
-            if img1 is None or img2 is None:
-                return 0
-            
-            # Resize to same dimensions for comparison
-            target_size = (256, 256)
-            img1_resized = cv2.resize(img1, target_size)
-            img2_resized = cv2.resize(img2, target_size)
-            
-            # Convert to grayscale
-            gray1 = cv2.cvtColor(img1_resized, cv2.COLOR_BGR2GRAY)
-            gray2 = cv2.cvtColor(img2_resized, cv2.COLOR_BGR2GRAY)
-            
-            # Calculate SSIM
-            similarity = ssim(gray1, gray2)
-            return similarity
-            
-        except Exception as e:
-            print(f"Error calculating SSIM: {e}")
-            return 0
-
-    def calculate_face_encoding(self, image_path):
-        """Calculate face encoding for face similarity comparison"""
-        try:
-            # Load image
-            image = face_recognition.load_image_file(image_path)
-            
-            # Get face encodings
-            face_encodings = face_recognition.face_encodings(image)
-            
-            if len(face_encodings) == 1:
-                return face_encodings[0]
-            else:
-                return None
-                
-        except Exception as e:
-            print(f"Error calculating face encoding: {e}")
-            return None
-
-    def is_duplicate_image(self, image_path, actor_name):
-        """Check if image is a duplicate using multiple methods"""
-        try:
-            # Initialize actor's hash storage if not exists
-            if actor_name not in self.image_hashes:
-                self.image_hashes[actor_name] = []
-                self.face_encodings_cache[actor_name] = []
-            
-            # Calculate hashes for new image
-            new_hashes = self.calculate_image_hash(image_path)
-            if not new_hashes:
-                return True, "Could not calculate hash"
-            
-            # Method 1: Check perceptual hash similarity
-            for stored_hash_data in self.image_hashes[actor_name]:
-                for hash_type in ['phash', 'dhash', 'whash', 'average']:
-                    if hash_type in new_hashes and hash_type in stored_hash_data['hashes']:
-                        # Calculate Hamming distance
-                        hash1 = imagehash.hex_to_hash(new_hashes[hash_type])
-                        hash2 = imagehash.hex_to_hash(stored_hash_data['hashes'][hash_type])
-                        hamming_distance = hash1 - hash2
-                        
-                        if hamming_distance <= self.HASH_SIMILARITY_THRESHOLD:
-                            return True, f"Duplicate detected (hash {hash_type}): distance={hamming_distance}"
-            
-            # Method 2: Check structural similarity with existing images
-            for stored_hash_data in self.image_hashes[actor_name]:
-                stored_image_path = stored_hash_data['path']
-                if os.path.exists(stored_image_path):
-                    ssim_score = self.calculate_structural_similarity(image_path, stored_image_path)
-                    if ssim_score >= self.SSIM_THRESHOLD:
-                        return True, f"Duplicate detected (SSIM): score={ssim_score:.3f}"
-            
-            # Method 3: Check face encoding similarity
-            new_face_encoding = self.calculate_face_encoding(image_path)
-            if new_face_encoding is not None:
-                for stored_encoding in self.face_encodings_cache[actor_name]:
-                    # Calculate face distance
-                    face_distance = face_recognition.face_distance([stored_encoding], new_face_encoding)[0]
-                    similarity = 1 - face_distance
-                    
-                    if similarity >= self.FACE_SIMILARITY_THRESHOLD:
-                        return True, f"Duplicate detected (face): similarity={similarity:.3f}"
-            
-            # If we reach here, it's not a duplicate - store the hashes and encoding
-            hash_data = {
-                'hashes': new_hashes,
-                'path': image_path
-            }
-            self.image_hashes[actor_name].append(hash_data)
-            
-            if new_face_encoding is not None:
-                self.face_encodings_cache[actor_name].append(new_face_encoding)
-            
-            return False, "Unique image"
-            
-        except Exception as e:
-            print(f"Error checking duplicate: {e}")
-            return False, "Error in duplicate check"
-
     def detect_single_face(self, image_path):
         """Detect if image has exactly ONE face using multiple methods"""
         try:
@@ -397,9 +260,7 @@ class IranianActorImageCrawler:
             f"{query} iranian cinema actor portrait",
             f"{query} persian actor headshot",
             f"{query} film actor portrait iran",
-            f"{query} celebrity headshot iran",
-            f"{query} official photo portrait",
-            f"{query} red carpet photo iran"
+            f"{query} celebrity headshot iran"
         ]
         
         for search_query in search_variations:
@@ -620,23 +481,14 @@ class IranianActorImageCrawler:
         return False
 
     def process_image(self, image_path, actor_name):
-        """Process image: check single face + check for duplicates"""
+        """Process image to ensure it has exactly one recognizable face"""
         try:
-            # Step 1: Check if image has exactly one face
-            has_single_face, face_message = self.detect_single_face(image_path)
+            has_single_face, message = self.detect_single_face(image_path)
             
             if not has_single_face:
                 os.remove(image_path)
-                return False, f"Face check failed: {face_message}"
+                return False, message
             
-            # Step 2: Check for duplicates
-            is_duplicate, duplicate_message = self.is_duplicate_image(image_path, actor_name)
-            
-            if is_duplicate:
-                os.remove(image_path)
-                return False, f"Duplicate: {duplicate_message}"
-            
-            # Step 3: Process and optimize image
             with Image.open(image_path) as img:
                 if img.mode != 'RGB':
                     img = img.convert('RGB')
@@ -650,20 +502,13 @@ class IranianActorImageCrawler:
                 
                 img.save(image_path, 'JPEG', quality=90, optimize=True)
             
-            # Step 4: Move to processed folder
             actor_dir = os.path.join(self.output_dir, "processed", actor_name.replace(' ', '_').replace('/', '_'))
             os.makedirs(actor_dir, exist_ok=True)
             
             processed_path = os.path.join(actor_dir, os.path.basename(image_path))
             os.rename(image_path, processed_path)
             
-            # Update the path in our hash storage
-            for hash_data in self.image_hashes[actor_name]:
-                if hash_data['path'] == image_path:
-                    hash_data['path'] = processed_path
-                    break
-            
-            return True, f"Unique single face: {face_message}"
+            return True, message
             
         except Exception as e:
             error_msg = f"Error processing image {image_path}: {e}"
@@ -671,34 +516,22 @@ class IranianActorImageCrawler:
                 os.remove(image_path)
             return False, error_msg
 
-    def crawl_actor_images_no_duplicates(self, actor_name, target_images=100):
-        """Crawl until we get EXACTLY the target number of UNIQUE single face images"""
-        print(f"\n{'='*80}")
-        print(f"🎭 NO DUPLICATES crawling for: {actor_name}")
-        print(f"🎯 Target: {target_images} UNIQUE SINGLE FACE images")
-        print(f"🚫 Duplicate detection: Hash + SSIM + Face encoding")
+    def crawl_actor_images_guaranteed(self, actor_name, target_images=100):
+        """Crawl until we get EXACTLY the target number of single face images"""
+        print(f"\n{'='*70}")
+        print(f"🎭 GUARANTEED crawling for: {actor_name}")
+        print(f"🎯 Target: {target_images} SINGLE FACE images (GUARANTEED)")
         print(f"🔧 Selenium available: {'Yes' if self.selenium_available else 'No'}")
-        print(f"{'='*80}")
+        print(f"{'='*70}")
         
         successful_downloads = 0
         total_attempts = 0
         search_round = 1
-        max_search_rounds = 15  # More rounds since we're filtering duplicates
-        
-        # Stats tracking
-        duplicate_count = 0
-        multiple_faces_count = 0
-        no_face_count = 0
-        download_failures = 0
+        max_search_rounds = 10  # Prevent infinite loops
         
         # Create temporary directory
         temp_dir = os.path.join(self.output_dir, "temp", actor_name.replace(' ', '_'))
         os.makedirs(temp_dir, exist_ok=True)
-        
-        # Initialize hash storage for this actor
-        if actor_name not in self.image_hashes:
-            self.image_hashes[actor_name] = []
-            self.face_encodings_cache[actor_name] = []
         
         # Get search queries
         search_queries = [actor_name]
@@ -709,15 +542,15 @@ class IranianActorImageCrawler:
         except:
             pass
         
-        # Continue until we have enough unique images
+        # Continue until we have enough images
         while successful_downloads < target_images and search_round <= max_search_rounds:
-            print(f"\n🔄 SEARCH ROUND {search_round} - Need {target_images - successful_downloads} more UNIQUE images")
+            print(f"\n🔄 SEARCH ROUND {search_round} - Need {target_images - successful_downloads} more images")
             
             # Get fresh batch of URLs
             all_image_urls = []
             for query in search_queries:
                 print(f"🔍 Batch searching for: {query}")
-                batch_urls = self.get_search_urls_batch(query, batch_size=250)  # More URLs since we filter heavily
+                batch_urls = self.get_search_urls_batch(query, batch_size=200)  # Get more URLs
                 all_image_urls.extend(batch_urls)
                 print(f"   Found {len(batch_urls)} URLs")
                 time.sleep(random.uniform(2, 4))
@@ -751,37 +584,24 @@ class IranianActorImageCrawler:
                     if success:
                         successful_downloads += 1
                         round_successes += 1
-                        print(f"✅ [{successful_downloads:3d}/{target_images}] UNIQUE: {actor_name}")
+                        print(f"✅ [{successful_downloads:3d}/{target_images}] SUCCESS: {actor_name} - {message}")
                     else:
-                        if "Duplicate" in message:
-                            duplicate_count += 1
-                            print(f"🔄 DUPLICATE rejected: {message}")
-                        elif "Multiple faces" in message:
-                            multiple_faces_count += 1
+                        if "Multiple faces" in message:
                             print(f"❌ Multiple faces rejected")
                         elif "No face" in message or "small" in message:
-                            no_face_count += 1
                             print(f"⚠️  No/small face rejected")
                 else:
-                    download_failures += 1
                     print(f"💥 Download failed")
                 
                 # Progress update every 50 attempts
                 if total_attempts % 50 == 0:
                     success_rate = (successful_downloads / total_attempts) * 100
-                    duplicate_rate = (duplicate_count / total_attempts) * 100
-                    print(f"📈 Progress Report:")
-                    print(f"   ✅ Unique images: {successful_downloads}/{target_images}")
-                    print(f"   🔄 Duplicates rejected: {duplicate_count} ({duplicate_rate:.1f}%)")
-                    print(f"   ❌ Multiple faces: {multiple_faces_count}")
-                    print(f"   ⚠️  No/small faces: {no_face_count}")
-                    print(f"   💥 Download failures: {download_failures}")
-                    print(f"   🎯 Success rate: {success_rate:.1f}%")
+                    print(f"📈 Progress: {successful_downloads}/{target_images} | Rate: {success_rate:.1f}% | Round: {search_round}")
                 
                 # Small delay
                 time.sleep(random.uniform(0.3, 1))
             
-            print(f"🔄 Round {search_round} completed: {round_successes} new UNIQUE images found")
+            print(f"🔄 Round {search_round} completed: {round_successes} new images found")
             search_round += 1
             
             # Longer delay between search rounds
@@ -797,34 +617,28 @@ class IranianActorImageCrawler:
         
         # Final results
         success_rate = (successful_downloads / total_attempts) * 100 if total_attempts > 0 else 0
-        duplicate_rate = (duplicate_count / total_attempts) * 100 if total_attempts > 0 else 0
         
         print(f"\n🎯 FINAL RESULTS for {actor_name}:")
-        print(f"   ✅ Unique single face images: {successful_downloads}/{target_images}")
+        print(f"   ✅ Single face images: {successful_downloads}/{target_images}")
         print(f"   📊 Total attempts: {total_attempts}")
         print(f"   🔄 Search rounds: {search_round - 1}")
-        print(f"   🔄 Duplicates rejected: {duplicate_count} ({duplicate_rate:.1f}%)")
-        print(f"   ❌ Multiple faces rejected: {multiple_faces_count}")
-        print(f"   ⚠️  No/small faces rejected: {no_face_count}")
-        print(f"   💥 Download failures: {download_failures}")
         print(f"   🎯 Success rate: {success_rate:.1f}%")
         
         if successful_downloads == target_images:
-            print(f"   🎉 TARGET ACHIEVED! Got exactly {target_images} UNIQUE single face images")
+            print(f"   🎉 TARGET ACHIEVED! Got exactly {target_images} single face images")
         else:
-            print(f"   ⚠️  Could not find {target_images} unique images after {max_search_rounds} search rounds")
+            print(f"   ⚠️  Could not find {target_images} images after {max_search_rounds} search rounds")
         
         return successful_downloads
 
-    def crawl_all_actors_no_duplicates(self):
-        """Crawl guaranteed 100 unique single face images for all actors"""
-        print("🚀 GUARANTEED 100 UNIQUE Single Face Images per Actor Crawler")
-        print("=" * 90)
-        print(f"🎯 Target: 100 UNIQUE single face images × {len(self.actors_list)} actors")
-        print(f"📊 Total target: {len(self.actors_list) * 100:,} unique single face images")
-        print("🚫 Duplicate detection: Perceptual hash + SSIM + Face encoding")
-        print("⚠️  Will continue searching until 100 UNIQUE single face images are found per actor!")
-        print("=" * 90)
+    def crawl_all_actors_guaranteed(self):
+        """Crawl guaranteed 100 single face images for all actors"""
+        print("🚀 GUARANTEED 100 Single Face Images per Actor Crawler")
+        print("=" * 80)
+        print(f"🎯 Target: 100 GUARANTEED single face images × {len(self.actors_list)} actors")
+        print(f"📊 Total target: {len(self.actors_list) * 100:,} single face images")
+        print("⚠️  Will continue searching until 100 single face images are found per actor!")
+        print("=" * 80)
         
         total_downloaded = 0
         completed_actors = 0
@@ -835,7 +649,7 @@ class IranianActorImageCrawler:
         for i, actor in enumerate(self.actors_list, 1):
             print(f"\n🎭 Actor {i}/{len(self.actors_list)}: {actor}")
             
-            downloaded = self.crawl_actor_images_no_duplicates(actor, target_images=100)
+            downloaded = self.crawl_actor_images_guaranteed(actor, target_images=100)
             total_downloaded += downloaded
             completed_actors += 1
             
@@ -844,8 +658,8 @@ class IranianActorImageCrawler:
             
             print(f"📊 Overall Progress:")
             print(f"   🎭 Actors processed: {completed_actors}/{len(self.actors_list)}")
-            print(f"   ✅ Fully completed actors (100 unique images): {fully_completed_actors}")
-            print(f"   📊 Total unique single face images: {total_downloaded:,}")
+            print(f"   ✅ Fully completed actors (100 images): {fully_completed_actors}")
+            print(f"   📊 Total single face images: {total_downloaded:,}")
             print(f"   📈 Average per actor: {total_downloaded/completed_actors:.1f}")
             
             # Rest between actors
@@ -858,38 +672,28 @@ class IranianActorImageCrawler:
         except:
             pass
         
-        print(f"\n🎉 NO DUPLICATES CRAWLING COMPLETED!")
+        print(f"\n🎉 GUARANTEED CRAWLING COMPLETED!")
         print(f"📊 Final Statistics:")
         print(f"   🎭 Actors processed: {completed_actors}")
-        print(f"   ✅ Fully completed (100 unique images): {fully_completed_actors}")
-        print(f"   📊 Total unique single face images: {total_downloaded:,}")
+        print(f"   ✅ Fully completed (100 images): {fully_completed_actors}")
+        print(f"   📊 Total single face images: {total_downloaded:,}")
         print(f"   📈 Average per actor: {total_downloaded/completed_actors:.1f}")
         print(f"   🎯 Completion rate: {(fully_completed_actors/len(self.actors_list))*100:.1f}%")
         print(f"   📁 Images saved in: {self.output_dir}/processed/")
-        print(f"   🚫 GUARANTEE: NO DUPLICATE IMAGES!")
         
         return total_downloaded
 
     def create_dataset_summary(self):
-        """Create a summary of the no-duplicates dataset"""
+        """Create a summary of the guaranteed dataset"""
         processed_dir = os.path.join(self.output_dir, "processed")
         summary = {
-            "dataset_type": "GUARANTEED UNIQUE SINGLE FACE",
+            "dataset_type": "GUARANTEED SINGLE FACE",
             "target_per_actor": 100,
             "total_actors": 0,
             "total_images": 0,
             "fully_completed_actors": 0,
             "actors_data": {},
-            "quality_guarantees": [
-                "All images contain exactly one face",
-                "No duplicate or similar images",
-                "Multiple deduplication methods used"
-            ],
-            "deduplication_methods": [
-                "Perceptual hash (pHash, dHash, wHash, average)",
-                "Structural similarity (SSIM)",
-                "Face encoding similarity"
-            ]
+            "quality_guarantee": "All images contain exactly one face"
         }
         
         if os.path.exists(processed_dir):
@@ -903,8 +707,7 @@ class IranianActorImageCrawler:
                         "image_count": image_count,
                         "path": actor_path,
                         "completed": image_count == 100,
-                        "completion_rate": f"{(image_count/100)*100:.1f}%",
-                        "uniqueness": "guaranteed_no_duplicates"
+                        "completion_rate": f"{(image_count/100)*100:.1f}%"
                     }
                     summary["total_images"] += image_count
                     summary["total_actors"] += 1
@@ -913,129 +716,59 @@ class IranianActorImageCrawler:
                         summary["fully_completed_actors"] += 1
         
         # Save summary
-        summary_file = os.path.join(self.output_dir, "no_duplicates_dataset_summary.json")
+        summary_file = os.path.join(self.output_dir, "guaranteed_dataset_summary.json")
         with open(summary_file, 'w', encoding='utf-8') as f:
             json.dump(summary, f, ensure_ascii=False, indent=2)
         
-        print(f"\n📋 NO DUPLICATES Dataset Summary:")
+        print(f"\n📋 GUARANTEED Dataset Summary:")
         print(f"   🎭 Total actors: {summary['total_actors']}")
-        print(f"   ✅ Fully completed actors (100 unique images): {summary['fully_completed_actors']}")
-        print(f"   📊 Total unique single face images: {summary['total_images']:,}")
+        print(f"   ✅ Fully completed actors (100 images): {summary['fully_completed_actors']}")
+        print(f"   📊 Total single face images: {summary['total_images']:,}")
         print(f"   🎯 Overall completion: {(summary['fully_completed_actors']/summary['total_actors'])*100:.1f}%")
-        print(f"   🚫 Uniqueness: GUARANTEED NO DUPLICATES")
         print(f"   📄 Summary saved: {summary_file}")
         
         return summary
 
-    def validate_no_duplicates(self):
-        """Validate that there are truly no duplicates in the dataset"""
-        processed_dir = os.path.join(self.output_dir, "processed")
-        
-        if not os.path.exists(processed_dir):
-            print("❌ No processed images found.")
-            return
-        
-        print("🔍 Validating dataset for duplicates...")
-        
-        total_comparisons = 0
-        duplicates_found = 0
-        
-        for actor_dir in os.listdir(processed_dir):
-            actor_path = os.path.join(processed_dir, actor_dir)
-            if not os.path.isdir(actor_path):
-                continue
-            
-            print(f"Validating: {actor_dir}")
-            
-            image_files = [f for f in os.listdir(actor_path) if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
-            
-            # Compare each image with every other image
-            for i in range(len(image_files)):
-                for j in range(i + 1, len(image_files)):
-                    total_comparisons += 1
-                    
-                    img1_path = os.path.join(actor_path, image_files[i])
-                    img2_path = os.path.join(actor_path, image_files[j])
-                    
-                    # Check SSIM similarity
-                    ssim_score = self.calculate_structural_similarity(img1_path, img2_path)
-                    
-                    if ssim_score >= self.SSIM_THRESHOLD:
-                        duplicates_found += 1
-                        print(f"   ⚠️  Potential duplicate: {image_files[i]} vs {image_files[j]} (SSIM: {ssim_score:.3f})")
-        
-        print(f"\n🎯 DUPLICATE VALIDATION RESULTS:")
-        print(f"   📊 Total comparisons: {total_comparisons:,}")
-        print(f"   ❌ Duplicates found: {duplicates_found}")
-        print(f"   ✅ Uniqueness rate: {((total_comparisons-duplicates_found)/total_comparisons)*100:.2f}%")
-        
-        if duplicates_found == 0:
-            print(f"   🎉 PERFECT! No duplicates found in the dataset!")
-        else:
-            print(f"   ⚠️  Found {duplicates_found} potential duplicates that need manual review")
-
 # Main execution
 if __name__ == "__main__":
-    # Check if required packages are installed
-    try:
-        import imagehash
-        from skimage.metrics import structural_similarity
-    except ImportError:
-        print("❌ Missing required packages. Please install:")
-        print("pip install ImageHash scikit-image")
-        exit(1)
-    
     crawler = IranianActorImageCrawler()
     
-    print("🎬 Iranian Actor/Actress NO DUPLICATES Single Face Image Crawler")
-    print("=" * 90)
-    print(f"🎯 GUARANTEE: 100 UNIQUE single face images × {len(crawler.actors_list)} actors")
-    print("🚫 DUPLICATE DETECTION: Hash + SSIM + Face Encoding")
-    print("⚠️  Will continue searching until EXACTLY 100 UNIQUE single face images per actor!")
-    print("=" * 90)
+    print("🎬 Iranian Actor/Actress GUARANTEED 100 Single Face Images Crawler")
+    print("=" * 80)
+    print(f"🎯 GUARANTEE: 100 single face images × {len(crawler.actors_list)} actors")
+    print("⚠️  Will continue searching until EXACTLY 100 single face images per actor!")
+    print("=" * 80)
     
-    choice = input("\nChoose option:\n1. Full crawl (all 100 actors)\n2. Test with first 2 actors\n3. Single actor test\n4. Validate existing dataset\n\nEnter choice (1, 2, 3, or 4): ").strip()
+    choice = input("\nChoose option:\n1. Full crawl (all 100 actors)\n2. Test with first 3 actors\n3. Single actor test\n\nEnter choice (1, 2, or 3): ").strip()
     
-    if choice == "4":
-        print("\n🔍 Validating existing dataset for duplicates...")
-        crawler.validate_no_duplicates()
-        
-    elif choice == "3":
+    if choice == "3":
         actor_name = input(f"\nEnter actor name from list: ").strip()
         if actor_name in crawler.actors_list:
-            print(f"\n🧪 Testing NO DUPLICATES crawl for: {actor_name}")
-            downloaded = crawler.crawl_actor_images_no_duplicates(actor_name, target_images=100)
-            print(f"\n🎯 Result: {downloaded}/100 unique single face images downloaded")
+            print(f"\n🧪 Testing guaranteed crawl for: {actor_name}")
+            downloaded = crawler.crawl_actor_images_guaranteed(actor_name, target_images=100)
+            print(f"\n🎯 Result: {downloaded}/100 single face images downloaded")
         else:
             print("❌ Actor not found in list")
     
     elif choice == "2":
-        print("\n🧪 Test mode: First 2 actors (100 unique images each)")
-        test_actors = crawler.actors_list[:2]
+        print("\n🧪 Test mode: First 3 actors (100 images each)")
+        test_actors = crawler.actors_list[:3]
         total_images = 0
         
         for i, actor in enumerate(test_actors, 1):
-            print(f"\n🎭 Test Actor {i}/2: {actor}")
-            downloaded = crawler.crawl_actor_images_no_duplicates(actor, target_images=100)
+            print(f"\n🎭 Test Actor {i}/3: {actor}")
+            downloaded = crawler.crawl_actor_images_guaranteed(actor, target_images=100)
             total_images += downloaded
         
-        print(f"\n🧪 Test completed! Downloaded {total_images} unique single face images")
+        print(f"\n🧪 Test completed! Downloaded {total_images} single face images")
         
     else:
-        print("\n🚀 Starting full NO DUPLICATES crawl...")
-        total_images = crawler.crawl_all_actors_no_duplicates()
+        print("\n🚀 Starting full guaranteed crawl...")
+        total_images = crawler.crawl_all_actors_guaranteed()
         
         print("\n📊 Creating dataset summary...")
         summary = crawler.create_dataset_summary()
-        
-        # Validate dataset
-        validate = input("\nValidate dataset for duplicates? (y/n): ").strip().lower()
-        if validate == 'y':
-            crawler.validate_no_duplicates()
     
-    print("\n🎉 NO DUPLICATES SINGLE FACE DATASET READY!")
+    print("\n🎉 GUARANTEED SINGLE FACE DATASET READY!")
     print(f"📁 Dataset location: {crawler.output_dir}/processed/")
-    print("🎯 Quality guarantees:")
-    print("   ✅ ALL images contain EXACTLY ONE FACE")
-    print("   🚫 NO DUPLICATE or SIMILAR IMAGES")
-    print("   🔍 Triple-checked with hash + SSIM + face encoding")
+    print("🎯 Quality guarantee: ALL images contain EXACTLY ONE FACE")
