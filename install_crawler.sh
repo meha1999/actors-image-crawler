@@ -49,46 +49,50 @@ echo "✅ Verifying Chrome installation..."
 google-chrome --version
 chromedriver --version
 
-# Create virtual environment
-if [ ! -d "iranian_actors_env" ]; then
-    echo "🔧 Creating virtual environment..."
-    python3 -m venv iranian_actors_env
+# Remove existing virtual environment if it exists
+if [ -d "iranian_actors_env" ]; then
+    echo "🗑️ Removing existing virtual environment..."
+    rm -rf iranian_actors_env
 fi
 
-# Activate virtual environment and install packages
-echo "🔧 Activating virtual environment and installing packages..."
-source iranian_actors_env/bin/activate
+# Create fresh virtual environment
+echo "🔧 Creating virtual environment..."
+python3 -m venv iranian_actors_env
 
-# Verify pip is available
-echo "🔍 Checking pip availability..."
-which pip
-pip --version
+# Define the virtual environment paths
+VENV_PYTHON="./iranian_actors_env/bin/python"
+VENV_PIP="./iranian_actors_env/bin/pip"
 
-# Upgrade pip
-echo "⬆️ Upgrading pip..."
-pip install --upgrade pip setuptools wheel
+# Verify virtual environment was created properly
+echo "🔍 Verifying virtual environment..."
+echo "Python path: $($VENV_PYTHON -c 'import sys; print(sys.executable)')"
+echo "Pip path: $(which $VENV_PIP 2>/dev/null || echo 'Using relative path')"
+
+# Upgrade pip in virtual environment
+echo "⬆️ Upgrading pip in virtual environment..."
+$VENV_PIP install --upgrade pip setuptools wheel
 
 # Install Python packages
 echo "📦 Installing Python packages..."
 
 echo "Installing numpy..."
-pip install numpy
+$VENV_PIP install numpy
 
 echo "Installing basic packages..."
-pip install requests beautifulsoup4 pillow selenium
+$VENV_PIP install requests beautifulsoup4 pillow selenium
 
 echo "Installing OpenCV..."
-pip install opencv-python
+$VENV_PIP install opencv-python
 
 echo "🔧 Installing dlib (this may take 10-15 minutes)..."
-pip install --no-cache-dir dlib
+$VENV_PIP install --no-cache-dir dlib
 
 echo "🔧 Installing face-recognition..."
-pip install face-recognition
+$VENV_PIP install face-recognition
 
 # Test installation
 echo "🧪 Testing installation..."
-python3 -c "
+$VENV_PYTHON -c "
 import cv2
 import face_recognition
 import selenium
@@ -97,6 +101,7 @@ from bs4 import BeautifulSoup
 from PIL import Image
 import numpy as np
 print('✅ All packages imported successfully!')
+print('Python executable:', __import__('sys').executable)
 "
 
 echo "✅ Installation complete!"
@@ -104,3 +109,6 @@ echo ""
 echo "To run the crawler:"
 echo "source iranian_actors_env/bin/activate"
 echo "python iranian_actor_crawler_complete.py"
+echo ""
+echo "Or run directly with:"
+echo "./iranian_actors_env/bin/python iranian_actor_crawler_complete.py"
