@@ -1,17 +1,18 @@
-
+#!/bin/bash
 set -e
 
 echo "🚀 Complete setup for Iranian Actor Image Crawler..."
 
-
+# Update system packages
 sudo apt update
 
-
+# Install system dependencies
 echo "📦 Installing system dependencies..."
 sudo apt install -y \
     python3-full \
     python3-venv \
     python3-dev \
+    python3-pip \
     build-essential \
     cmake \
     pkg-config \
@@ -32,60 +33,60 @@ sudo apt install -y \
     libpng-dev \
     libtiff-dev
 
-
+# Install Google Chrome
 echo "📦 Installing Google Chrome..."
 wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add - 2>/dev/null || true
 echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list >/dev/null
 sudo apt update
 sudo apt install google-chrome-stable -y
 
-
+# Install ChromeDriver
 echo "📦 Installing ChromeDriver..."
 sudo apt install chromium-chromedriver -y
 
-
+# Verify Chrome installation
 echo "✅ Verifying Chrome installation..."
 google-chrome --version
 chromedriver --version
 
-
+# Create virtual environment
 if [ ! -d "iranian_actors_env" ]; then
     echo "🔧 Creating virtual environment..."
     python3 -m venv iranian_actors_env
 fi
 
-
-echo "🔧 Activating virtual environment..."
+# Activate virtual environment and install packages
+echo "🔧 Activating virtual environment and installing packages..."
 source iranian_actors_env/bin/activate
 
+# Verify pip is available
+echo "🔍 Checking pip availability..."
+which pip
+pip --version
 
+# Upgrade pip
 echo "⬆️ Upgrading pip..."
 pip install --upgrade pip setuptools wheel
 
-
+# Install Python packages
 echo "📦 Installing Python packages..."
-
 
 echo "Installing numpy..."
 pip install numpy
 
-
 echo "Installing basic packages..."
 pip install requests beautifulsoup4 pillow selenium
-
 
 echo "Installing OpenCV..."
 pip install opencv-python
 
-
 echo "🔧 Installing dlib (this may take 10-15 minutes)..."
 pip install --no-cache-dir dlib
-
 
 echo "🔧 Installing face-recognition..."
 pip install face-recognition
 
-
+# Test installation
 echo "🧪 Testing installation..."
 python3 -c "
 import cv2
@@ -99,6 +100,7 @@ print('✅ All packages imported successfully!')
 "
 
 echo "✅ Installation complete!"
+echo ""
 echo "To run the crawler:"
 echo "source iranian_actors_env/bin/activate"
 echo "python iranian_actor_crawler_complete.py"
