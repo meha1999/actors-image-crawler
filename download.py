@@ -25,7 +25,6 @@ class IranianActorImageDownloader:
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         })
 
-        # Create directories
         os.makedirs(output_dir, exist_ok=True)
         os.makedirs(f"{output_dir}/raw_downloads", exist_ok=True)
         os.makedirs(f"{output_dir}/temp", exist_ok=True)
@@ -35,31 +34,30 @@ class IranianActorImageDownloader:
 
         print(f"🧵 Using {self.download_workers} download workers")
 
-        # Actor lists
         self.actors_list = [
-            # "شهاب حسینی", "پیمان معادی", "حامد بهداد", "رضا عطاران", "بهرام رادان",
-            # "محمدرضا گلزار", "رضا کیانیان", "سام درخشانی", "امین حیایی", "جواد عزتی",
-            # "محسن تنابنده", "پژمان جمشیدی", "امیر جعفری", "فرهاد اصلانی", "محمدرضا شریفینیا",
-            # "علیرضا خمسه", "میلاد کی‌مرام", "علی نصیریان", "اکبر عبدی", "مهدی هاشمی",
-            # "حسین یاری", "امیرحسین صدیق", "مهران مدیری", "رضا ناجی", "بیژن بنفشه‌خواه",
-            # "داریوش ارجمند", "جمشید هاشم‌پور", "عزت‌الله انتظامی", "محمود پاک‌نیت", "اصغر همت",
-            # "مسعود رایگان", "رضا بابک", "امیر آقایی", "فریبرز عرب‌نیا", "مسعود کرامتی",
-            # "رضا صفایی پور", "علی اوجی", "حسن پورشیرازی", "فرید سجادی حسینی", "مجید مشیری",
-            # "علی‌رضا عصار", "مرتضی علی‌عباسی", "یکتا ناصر", "امیرحسین رستمی", "محسن کیایی",
-            # "رامبد جوان", "حسام نواب صفوی", "پوریا پورسرخ", "امیرمهدی ژوله", "بهروز شعیبی",
+            "شهاب حسینی", "پیمان معادی", "حامد بهداد", "رضا عطاران", "بهرام رادان",
+            "محمدرضا گلزار", "رضا کیانیان", "سام درخشانی", "امین حیایی", "جواد عزتی",
+            "محسن تنابنده", "پژمان جمشیدی", "امیر جعفری", "فرهاد اصلانی", "محمدرضا شریفینیا",
+            "علیرضا خمسه", "میلاد کی‌مرام", "علی نصیریان", "اکبر عبدی", "مهدی هاشمی",
+            "حسین یاری", "امیرحسین صدیق", "مهران مدیری", "رضا ناجی", "بیژن بنفشه‌خواه",
+            "داریوش ارجمند", "جمشید هاشم‌پور", "عزت‌الله انتظامی", "محمود پاک‌نیت", "اصغر همت",
+            "مسعود رایگان", "رضا بابک", "امیر آقایی", "فریبرز عرب‌نیا", "مسعود کرامتی",
+            "رضا صفایی پور", "علی اوجی", "حسن پورشیرازی", "فرید سجادی حسینی", "مجید مشیری",
+            "علی‌رضا عصار", "مرتضی علی‌عباسی", "یکتا ناصر", "امیرحسین رستمی", "محسن کیایی",
+            "رامبد جوان", "حسام نواب صفوی", "پوریا پورسرخ", "امیرمهدی ژوله", "بهروز شعیبی",
 
-            # "گلشیفته فراهانی", "لیلا حاتمی", "ترانه علیدوستی", "مهناز افشار", "هدیه تهرانی",
-            # "فاطمه معتمدآریا", "نیکی کریمی", "بهنوش طباطبایی", "مریلا زارعی", "لادن مستوفی",
-            # "سحر دولتشاهی", "بهاره رهنما", "مهتاب کرامتی", "ساره بیات", "مریم بوبانی",
-            # "هانیه توسلی", "نازنین بیاتی", "مهراوه شریفینیا", "بهاره کیان‌افشار", "الناز شاکردوست",
-            # "مهراوه شریفی‌نیا", "پانته‌آ بهرام", "مریم خدارحمی", "نگار جواهریان", "لیلی رشیدی",
-            # "گلاره عباسی", "نسرین مقانلو", "سارا بهرامی", "ستاره اسکندری", "مینا ساداتی",
-            # "ویشکا آسایش", "شبنم مقدمی", "یکتا ناصر", "مهناز افشار", "شیرین بینا",
-            # "فریبا نادری", "مرجان شیرمحمدی", "لیندا کیانی", "نیوشا ضیغمی", "آزاده صمدی",
-            # "رعنا آزادی‌ور", "سیما تیرانداز", "مریم معصومی", "آناهیتا افشار", "مهسا کرامتی",
-            # "ماهچهره خلیلی", "فلور نظری", "شقایق فراهانی", "لعیا زنگنه", "سوگل خلیق",
-            # "نگین معتضدی", "نسیم ادبی", "سحر قریشی", "مهراوه شریفی‌نیا", "آتنه فقانی"
-            'مهدی پاکدل', 'امیرحسین آرمان', 'طناز طباطبایی', 'لیلا اوتادی', 'علی شادمان', 'بهنوش طباطبایی', 'پارسا پیروزفر', 'بهزاد خلج','شبنم قلی خانی','لیندا کیانی',''
+            "گلشیفته فراهانی", "لیلا حاتمی", "ترانه علیدوستی", "مهناز افشار", "هدیه تهرانی",
+            "فاطمه معتمدآریا", "نیکی کریمی", "بهنوش طباطبایی", "مریلا زارعی", "لادن مستوفی",
+            "سحر دولتشاهی", "بهاره رهنما", "مهتاب کرامتی", "ساره بیات", "مریم بوبانی",
+            "هانیه توسلی", "نازنین بیاتی", "مهراوه شریفینیا", "بهاره کیان‌افشار", "الناز شاکردوست",
+            "مهراوه شریفی‌نیا", "پانته‌آ بهرام", "مریم خدارحمی", "نگار جواهریان", "لیلی رشیدی",
+            "گلاره عباسی", "نسرین مقانلو", "سارا بهرامی", "ستاره اسکندری", "مینا ساداتی",
+            "ویشکا آسایش", "شبنم مقدمی", "یکتا ناصر", "مهناز افشار", "شیرین بینا",
+            "فریبا نادری", "مرجان شیرمحمدی", "لیندا کیانی", "نیوشا ضیغمی", "آزاده صمدی",
+            "رعنا آزادی‌ور", "سیما تیرانداز", "مریم معصومی", "آناهیتا افشار", "مهسا کرامتی",
+            "ماهچهره خلیلی", "فلور نظری", "شقایق فراهانی", "لعیا زنگنه", "سوگل خلیق",
+            "نگین معتضدی", "نسیم ادبی", "سحر قریشی", "مهراوه شریفی‌نیا", "آتنه فقانی"
+            'مهدی پاکدل', 'امیرحسین آرمان', 'طناز طباطبایی', 'لیلا اوتادی', 'علی شادمان', 'بهنوش طباطبایی', 'پارسا پیروزفر', 'بهزاد خلج', 'شبنم قلی خانی', 'لیندا کیانی', ''
         ]
 
     def get_optimal_worker_count(self):
@@ -178,39 +176,39 @@ class IranianActorImageDownloader:
             f"{query} professional headshot photo",
             f"{query} official photo portrait verified",
 
-            # Persian/Farsi searches
+
             f"{query} بازیگر ایرانی پرتره تک نفره رسمی",
             f"{query} عکس رسمی بازیگر ایرانی",
             f"{query} پرتره بازیگر سینمای ایران",
             f"{query} تصویر رسمی هنرپیشه ایرانی",
 
-            # Cinema and film related
+
             f"{query} iranian cinema actor portrait verified",
             f"{query} persian actor headshot official",
             f"{query} film actor portrait iran verified",
             f"{query} iranian movie star headshot",
             f"{query} persian cinema celebrity photo",
 
-            # Event and professional photos
+
             f"{query} red carpet photo iran verified",
             f"{query} celebrity headshot iran official",
             f"{query} film festival photo iran",
             f"{query} press conference photo iranian actor",
             f"{query} movie premiere photo iran",
 
-            # High quality and professional terms
+
             f"{query} high resolution headshot professional",
             f"{query} studio portrait iranian actor",
             f"{query} professional photography iranian celebrity",
             f"{query} official publicity photo iran",
             f"{query} press kit photo iranian actor",
 
-            # Social media and modern terms
+
             f"{query} instagram official photo verified",
             f"{query} verified account photo iranian actor",
             f"{query} social media profile picture",
 
-            # Additional quality indicators
+
             f"{query} clear face photo high quality",
             f"{query} single person portrait professional",
             f"{query} face closeup professional photo",
@@ -238,7 +236,6 @@ class IranianActorImageDownloader:
 
             time.sleep(random.uniform(1, 3))
 
-        # Remove duplicates
         seen = set()
         unique_urls = []
         for url in all_urls:
@@ -262,7 +259,6 @@ class IranianActorImageDownloader:
             driver.get(search_url)
             time.sleep(2)
 
-            # Scroll and load more images
             for scroll in range(5):
                 driver.execute_script(
                     "window.scrollTo(0, document.body.scrollHeight);")
@@ -322,7 +318,6 @@ class IranianActorImageDownloader:
 
             image_urls = []
 
-            # Extract image URLs from various sources
             for img in soup.find_all('img', {'data-src': True}):
                 src = img.get('data-src')
                 if src and src.startswith('http') and 'gstatic' not in src and len(image_urls) < num_images:
@@ -333,7 +328,6 @@ class IranianActorImageDownloader:
                 if src and src.startswith('http') and 'gstatic' not in src and len(image_urls) < num_images:
                     image_urls.append(src)
 
-            # Extract from scripts
             for script in soup.find_all('script'):
                 if script.string:
                     urls = re.findall(
@@ -352,7 +346,6 @@ class IranianActorImageDownloader:
         """Search additional sources for batch URL collection"""
         additional_urls = []
 
-        # Bing search
         try:
             search_url = f"https://www.bing.com/images/search?q={quote(query)}"
             response = self.session.get(search_url)
@@ -365,7 +358,6 @@ class IranianActorImageDownloader:
         except Exception as e:
             print(f"Error searching Bing: {e}")
 
-        # DuckDuckGo search
         try:
             search_url = f"https://duckduckgo.com/?q={quote(query)}&t=h_&iax=images&ia=images"
             response = self.session.get(search_url)
@@ -403,24 +395,20 @@ class IranianActorImageDownloader:
                     url, headers=headers, timeout=15, stream=True)
                 response.raise_for_status()
 
-                # Check content type
                 content_type = response.headers.get('content-type', '').lower()
                 if not any(img_type in content_type for img_type in ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']):
                     continue
 
-                # Check file size
                 content_length = response.headers.get('content-length')
                 if content_length:
                     size = int(content_length)
-                    if size < 10000 or size > 10000000:  # 10KB to 10MB
+                    if size < 10000 or size > 10000000:
                         continue
 
-                # Download the image
                 with open(filename, 'wb') as f:
                     for chunk in response.iter_content(chunk_size=8192):
                         f.write(chunk)
 
-                # Verify the image
                 try:
                     with Image.open(filename) as img:
                         width, height = img.size
@@ -484,7 +472,6 @@ class IranianActorImageDownloader:
         """Download images for a single actor"""
         print(f"\n🎭 Starting download for: {actor_name}")
 
-        # Create actor-specific directory
         actor_dir = os.path.join(self.output_dir, "raw_downloads", actor_name.replace(
             ' ', '_').replace('/', '_'))
         os.makedirs(actor_dir, exist_ok=True)
@@ -501,7 +488,6 @@ class IranianActorImageDownloader:
         while successful_downloads < target_images and search_round <= max_search_rounds:
             print(f"\n🔍 Search Round {search_round} for {actor_name}")
 
-            # Get URLs for this search round
             unique_urls = self.get_search_urls_batch(
                 actor_name, batch_size=100)
             print(
@@ -513,7 +499,6 @@ class IranianActorImageDownloader:
                 search_round += 1
                 continue
 
-            # Download in batches
             batch_size = min(100, len(unique_urls))
             round_successes = 0
 
@@ -525,7 +510,6 @@ class IranianActorImageDownloader:
                 print(
                     f"⏳ Processing batch {batch_start//batch_size + 1}/{(len(unique_urls) + batch_size - 1)//batch_size}")
 
-                # Download batch
                 download_results = self.parallel_download_images(
                     batch_urls, actor_name, temp_dir, search_round)
 
@@ -535,7 +519,6 @@ class IranianActorImageDownloader:
                     download_success_count
                 total_attempts += len(download_results)
 
-                # Move successful downloads to actor directory
                 for success, filename in download_results:
                     if success and successful_downloads < target_images:
                         final_path = os.path.join(
@@ -559,14 +542,12 @@ class IranianActorImageDownloader:
                 print(f"⏳ Waiting before next search round...")
                 time.sleep(random.uniform(10, 20))
 
-        # Cleanup temp directory
         try:
             import shutil
             shutil.rmtree(temp_dir)
         except:
             pass
 
-        # Print statistics
         success_rate = (successful_downloads / total_attempts) * \
             100 if total_attempts > 0 else 0
         print(f"\n📊 Download Summary for {actor_name}:")

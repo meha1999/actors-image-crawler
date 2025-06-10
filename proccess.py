@@ -19,26 +19,21 @@ class IranianActorImageProcessor:
         self.input_dir = input_dir
         self.output_dir = output_dir or input_dir
 
-        # Create directories
         os.makedirs(f"{self.output_dir}/processed", exist_ok=True)
         os.makedirs(f"{self.output_dir}/reference_images", exist_ok=True)
 
-        # Initialize face detection
         self.face_cascade = cv2.CascadeClassifier(
             cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
 
-        # Initialize caches
         self.image_hashes = {}
         self.face_encodings_cache = {}
         self.reference_encodings = {}
 
-        # Thresholds
         self.HASH_SIMILARITY_THRESHOLD = 5
         self.SSIM_THRESHOLD = 0.85
         self.FACE_SIMILARITY_THRESHOLD = 0.6
         self.IDENTITY_THRESHOLD = 0.6
 
-        # Threading
         self.lock = threading.Lock()
         self.process_workers = self.get_optimal_worker_count()
 
@@ -50,7 +45,7 @@ class IranianActorImageProcessor:
             import psutil
             cpu_count = psutil.cpu_count(logical=True)
             if cpu_count:
-                # Use fewer workers for processing
+
                 return max(1, int(cpu_count * 0.5))
         except ImportError:
             pass
@@ -126,7 +121,6 @@ class IranianActorImageProcessor:
 
             rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
-            # Try face_recognition library first
             try:
                 face_locations = face_recognition.face_locations(
                     rgb_img, model="hog")
@@ -150,14 +144,13 @@ class IranianActorImageProcessor:
                         return False, f"Face too small: {face_width}x{face_height}"
 
                 elif face_count_fr == 0:
-                    pass  # Try OpenCV
+                    pass
                 else:
                     return False, f"Multiple faces detected (face_recognition): {face_count_fr} faces"
 
             except Exception as e:
                 print(f"Face recognition library error: {e}")
 
-            # Try OpenCV as fallback
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
             faces = self.face_cascade.detectMultiScale(
                 gray, scaleFactor=1.1, minNeighbors=5, minSize=(60, 60),
@@ -171,7 +164,7 @@ class IranianActorImageProcessor:
                 else:
                     return False, f"Face too small (OpenCV): {w}x{h}"
             elif len(faces) == 0:
-                # Try more sensitive detection
+
                 faces = self.face_cascade.detectMultiScale(
                     gray, scaleFactor=1.05, minNeighbors=3, minSize=(40, 40),
                     maxSize=(int(gray.shape[1]*0.9), int(gray.shape[0]*0.9))
@@ -199,13 +192,12 @@ class IranianActorImageProcessor:
                     self.image_hashes[actor_name] = []
                     self.face_encodings_cache[actor_name] = []
 
-            # Calculate hashes for new image
             new_hashes = self.calculate_image_hash(image_path)
             if not new_hashes:
                 return True, "Could not calculate hash"
 
             with self.lock:
-                # Check hash similarity
+
                 for stored_hash_data in self.image_hashes[actor_name]:
                     for hash_type in ['phash', 'dhash', 'whash', 'average']:
                         if hash_type in new_hashes and hash_type in stored_hash_data['hashes']:
@@ -218,7 +210,6 @@ class IranianActorImageProcessor:
                             if hamming_distance <= self.HASH_SIMILARITY_THRESHOLD:
                                 return True, f"Duplicate detected (hash {hash_type}): distance={hamming_distance}"
 
-                # Check structural similarity
                 for stored_hash_data in self.image_hashes[actor_name]:
                     stored_image_path = stored_hash_data['path']
                     if os.path.exists(stored_image_path):
@@ -227,7 +218,6 @@ class IranianActorImageProcessor:
                         if ssim_score >= self.SSIM_THRESHOLD:
                             return True, f"Duplicate detected (SSIM): score={ssim_score:.3f}"
 
-            # Check face similarity
             new_face_encoding = self.calculate_face_encoding(image_path)
             if new_face_encoding is not None:
                 with self.lock:
@@ -239,7 +229,6 @@ class IranianActorImageProcessor:
                         if similarity >= self.FACE_SIMILARITY_THRESHOLD:
                             return True, f"Duplicate detected (face): similarity={similarity:.3f}"
 
-                    # Store the new image data
                     hash_data = {
                         'hashes': new_hashes,
                         'path': image_path
@@ -282,7 +271,7 @@ class IranianActorImageProcessor:
         print(f"🧮 Clustering {len(face_encodings)} face encodings...")
 
         try:
-            # Perform clustering
+
             clustering = DBSCAN(eps=0.6, min_samples=3).fit(face_encodings)
 
             labels = clustering.labels_
@@ -290,7 +279,6 @@ class IranianActorImageProcessor:
                 print("❌ No meaningful clusters found")
                 return None
 
-            # Find largest cluster
             label_counts = {}
             for label in labels:
                 if label != -1:
@@ -306,14 +294,12 @@ class IranianActorImageProcessor:
             print(
                 f"🎯 Found largest cluster with {cluster_size} faces ({(cluster_size/len(face_encodings))*100:.1f}%)")
 
-            # Find center of largest cluster
             cluster_indices = [i for i, label in enumerate(
                 labels) if label == largest_cluster]
 
             if not cluster_indices:
                 return None
 
-            # Find the face closest to cluster center
             min_distance_sum = float('inf')
             center_idx = -1
 
@@ -334,10 +320,8 @@ class IranianActorImageProcessor:
             center_encoding = face_encodings[center_idx]
             center_path = valid_paths[center_idx]
 
-            # Store as reference
             self.reference_encodings[actor_name] = center_encoding
 
-            # Save reference image
             ref_dir = os.path.join(self.output_dir, "reference_images")
             os.makedirs(ref_dir, exist_ok=True)
             ref_path = os.path.join(
@@ -355,7 +339,7 @@ class IranianActorImageProcessor:
     def verify_face_identity(self, image_path, actor_name, similarity_threshold=0.6):
         """Verify if the face in the image matches the reference face for the actor"""
         if actor_name not in self.reference_encodings:
-            # No reference available, assume it's correct
+
             return True, 1.0
 
         try:
@@ -380,14 +364,13 @@ class IranianActorImageProcessor:
     def process_single_image(self, img_path, actor_name):
         """Process a single image: check face, duplicates, and identity"""
         try:
-            # Check for single face
+
             has_single_face, face_message = self.detect_single_face(img_path)
             if not has_single_face:
                 if os.path.exists(img_path):
                     os.remove(img_path)
                 return False, img_path, f"Face check failed: {face_message}"
 
-            # Verify identity
             is_correct_person, similarity = self.verify_face_identity(
                 img_path, actor_name)
             if not is_correct_person:
@@ -395,7 +378,6 @@ class IranianActorImageProcessor:
                     os.remove(img_path)
                 return False, img_path, f"Wrong person: {similarity:.2f} similarity"
 
-            # Check for duplicates
             is_duplicate, duplicate_message = self.is_duplicate_image(
                 img_path, actor_name)
             if is_duplicate:
@@ -403,12 +385,10 @@ class IranianActorImageProcessor:
                     os.remove(img_path)
                 return False, img_path, f"Duplicate: {duplicate_message}"
 
-            # Optimize image
             with Image.open(img_path) as img:
                 if img.mode != 'RGB':
                     img = img.convert('RGB')
 
-                # Resize if needed
                 if max(img.size) > 1024:
                     img.thumbnail((1024, 1024), Image.Resampling.LANCZOS)
                 elif max(img.size) < 300:
@@ -419,7 +399,6 @@ class IranianActorImageProcessor:
 
                 img.save(img_path, 'JPEG', quality=90, optimize=True)
 
-            # Move to processed directory
             actor_dir = os.path.join(
                 self.output_dir, "processed", actor_name.replace(' ', '_').replace('/', '_'))
             os.makedirs(actor_dir, exist_ok=True)
@@ -428,7 +407,6 @@ class IranianActorImageProcessor:
                 actor_dir, os.path.basename(img_path))
             os.rename(img_path, processed_path)
 
-            # Update hash data path
             with self.lock:
                 for hash_data in self.image_hashes[actor_name]:
                     if hash_data['path'] == img_path:
@@ -480,14 +458,12 @@ class IranianActorImageProcessor:
         """Process all images for a single actor"""
         print(f"\n🎭 Processing images for: {actor_name}")
 
-        # Find raw images
         raw_dir = os.path.join(self.input_dir, "raw_downloads",
                                actor_name.replace(' ', '_').replace('/', '_'))
         if not os.path.exists(raw_dir):
             print(f"⚠️ No raw images found for {actor_name}")
             return 0
 
-        # Get all image files
         image_files = []
         for filename in os.listdir(raw_dir):
             if filename.lower().endswith(('.jpg', '.jpeg', '.png')):
@@ -499,12 +475,10 @@ class IranianActorImageProcessor:
 
         print(f"📊 Found {len(image_files)} raw images for {actor_name}")
 
-        # Create reference encoding from clustering if enough images
         if len(image_files) >= 10:
-            # Use first 50 for clustering
+
             self.identify_most_common_face(image_files[:50], actor_name)
 
-        # Process images
         processed_count = 0
         batch_size = 50
 
@@ -532,7 +506,7 @@ class IranianActorImageProcessor:
 
     def process_all_actors(self, target_images_per_actor=100):
         """Process images for all actors"""
-        # Get list of actors from raw downloads
+
         raw_downloads_dir = os.path.join(self.input_dir, "raw_downloads")
         if not os.path.exists(raw_downloads_dir):
             print("❌ No raw downloads directory found!")
@@ -549,7 +523,7 @@ class IranianActorImageProcessor:
         completed_actors = 0
 
         for i, actor_dir in enumerate(actor_dirs, 1):
-            # Convert directory name back to actor name
+
             actor_name = actor_dir.replace('_', ' ')
 
             print(f"\n{'='*60}")
@@ -568,7 +542,7 @@ class IranianActorImageProcessor:
             print(
                 f"   📈 Average per actor: {total_processed/completed_actors:.1f}")
 
-            time.sleep(2)  # Brief pause between actors
+            time.sleep(2)
 
         print(f"\n🎉 PROCESSING COMPLETED!")
         print(f"📊 Final Statistics:")
